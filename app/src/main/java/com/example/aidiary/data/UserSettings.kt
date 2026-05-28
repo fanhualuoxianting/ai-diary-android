@@ -14,18 +14,21 @@ data class UserSettings(
     val reminderTime: String = "21:30",
     val modelPath: String = "",
     val writingStyle: String = "标准",
+    val selectedModelId: String = ModelIds.Gemma3nE2bLiteRt,
 )
 
 class SettingsRepository(private val context: Context) {
     private val reminderTimeKey = stringPreferencesKey("reminder_time")
     private val modelPathKey = stringPreferencesKey("model_path")
     private val writingStyleKey = stringPreferencesKey("writing_style")
+    private val selectedModelIdKey = stringPreferencesKey("selected_model_id")
 
     val settings: Flow<UserSettings> = context.settingsDataStore.data.map { prefs ->
         UserSettings(
             reminderTime = prefs[reminderTimeKey] ?: "21:30",
             modelPath = prefs[modelPathKey] ?: "",
             writingStyle = prefs[writingStyleKey] ?: "标准",
+            selectedModelId = prefs[selectedModelIdKey] ?: ModelIds.Gemma3nE2bLiteRt,
         )
     }
 
@@ -39,6 +42,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun updateWritingStyle(value: String) {
         context.settingsDataStore.edit { it[writingStyleKey] = value }
+    }
+
+    suspend fun updateSelectedModelId(value: String) {
+        context.settingsDataStore.edit { it[selectedModelIdKey] = value }
     }
 
     suspend fun settingsSnapshot(): UserSettings = settings.first()

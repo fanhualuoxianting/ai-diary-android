@@ -155,6 +155,10 @@ class DiaryViewModel(
         viewModelScope.launch { settingsRepository.updateReminderTime(value) }
     }
 
+    fun updateSelectedModelId(value: String) {
+        viewModelScope.launch { settingsRepository.updateSelectedModelId(value) }
+    }
+
     fun deleteAllLocalData() {
         viewModelScope.launch {
             diaryRepository.deleteAllLocalData()

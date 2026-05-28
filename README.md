@@ -15,6 +15,17 @@
 
 `app/src/main/java/com/example/aidiary/llm/LocalLlmEngine.kt` 中的 `GemmaLocalEngine` 是后续接 MediaPipe LLM Inference API 或 LiteRT-LM 的位置。当前代码已经固定中文 prompt，要求不虚构事件、食物或情绪。
 
+## 推荐模型
+
+首选下载 Gemma 3n E2B LiteRT-LM：
+
+- 推荐：<https://huggingface.co/google/gemma-3n-E2B-it-litert-lm>
+- 更强但更大：<https://huggingface.co/google/gemma-3n-E4B-it-litert-lm>
+- 轻量实验：<https://huggingface.co/google/gemma-3-270m>
+- Gemma 4 文档入口：<https://ai.google.dev/gemma/docs/core>
+
+Hugging Face 上的 Google 模型通常需要登录并接受模型许可后才能下载。下载完成后，把模型文件放到手机本地目录，例如 `/sdcard/Download/`，再到 app 设置页填写完整路径。
+
 ## 构建
 
 用 Android Studio 打开 `ai-diary-android`，同步 Gradle 后运行：
