@@ -8,6 +8,7 @@ local.properties
 app/build/
 app-smoke*.png
 model-center*.png
+litert-settings*.png
 *.xml
 
 # Local tooling and signing material

@@ -8,12 +8,12 @@
 - Room 本地保存日记、问答和三餐记录。
 - DataStore 保存模型路径和写作风格。
 - WorkManager 每日中文提醒。
-- `LocalLlmEngine` 抽象和 `GemmaLocalEngine` 接入点。
-- 未配置模型或推理后端未接入时，仍可生成本地可编辑草稿并保存。
+- `LocalLlmEngine` 抽象和 `GemmaLocalEngine` LiteRT-LM 本地推理实现。
+- 未配置模型或推理失败时，仍可生成本地可编辑草稿并保存。
 
 ## Gemma 接入点
 
-`app/src/main/java/com/example/aidiary/llm/LocalLlmEngine.kt` 中的 `GemmaLocalEngine` 是后续接 MediaPipe LLM Inference API 或 LiteRT-LM 的位置。当前代码已经固定中文 prompt，要求不虚构事件、食物或情绪。
+`app/src/main/java/com/example/aidiary/llm/LocalLlmEngine.kt` 中的 `GemmaLocalEngine` 使用 `com.google.ai.edge.litertlm:litertlm-android` 运行 `.litertlm` 模型。当前 prompt 要求不虚构事件、食物或情绪。
 
 ## 推荐模型
 
@@ -24,7 +24,7 @@
 - 轻量实验：<https://huggingface.co/google/gemma-3-270m>
 - Gemma 4 文档入口：<https://ai.google.dev/gemma/docs/core>
 
-Hugging Face 上的 Google 模型通常需要登录并接受模型许可后才能下载。下载完成后，把模型文件放到手机本地目录，例如 `/sdcard/Download/`，再到 app 设置页填写完整路径。
+Hugging Face 上的 Google 模型通常需要登录并接受模型许可后才能下载。下载完成后，在 app 设置页点“导入 .litertlm 模型文件”，选择下载好的模型；app 会复制到自己的私有目录并保存可读路径。不要只手动填写 `/sdcard/Download/...`，Android 13+ 通常不允许普通 app 直接读取这个目录。
 
 ## 构建
 

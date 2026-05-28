@@ -1,5 +1,7 @@
 package com.example.aidiary.ui
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -19,6 +21,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.io.File
 import java.time.LocalDate
 
 data class DiaryUiState(
@@ -35,6 +38,7 @@ data class DiaryUiState(
     val modelAvailable: Boolean = false,
     val status: String = "填写几句，今晚就能留下今天。",
     val isGenerating: Boolean = false,
+    val isImportingModel: Boolean = false,
 )
 
 class DiaryViewModel(
@@ -144,6 +148,45 @@ class DiaryViewModel(
         viewModelScope.launch {
             settingsRepository.updateModelPath(value)
             localState.value = localState.value.copy(modelAvailable = llmEngine.isAvailable())
+        }
+    }
+
+    fun importModel(context: Context, uri: Uri) {
+        viewModelScope.launch {
+            localState.value = localState.value.copy(
+                isImportingModel = true,
+                status = "正在导入模型文件，请保持应用打开……",
+            )
+            val result = runCatching {
+                val modelsDir = File(context.filesDir, "models").apply { mkdirs() }
+                val displayName = context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                    val nameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (cursor.moveToFirst() && nameIndex >= 0) cursor.getString(nameIndex) else null
+                } ?: "gemma-model.litertlm"
+                val safeName = displayName.replace(Regex("[^A-Za-z0-9._-]"), "_")
+                val target = File(modelsDir, safeName)
+                context.contentResolver.openInputStream(uri).use { input ->
+                    requireNotNull(input) { "无法打开模型文件" }
+                    target.outputStream().use { output -> input.copyTo(output) }
+                }
+                target.absolutePath
+            }
+            result.fold(
+                onSuccess = { path ->
+                    settingsRepository.updateModelPath(path)
+                    localState.value = localState.value.copy(
+                        isImportingModel = false,
+                        modelAvailable = llmEngine.isAvailable(),
+                        status = "模型已导入本机，可用于离线生成。",
+                    )
+                },
+                onFailure = {
+                    localState.value = localState.value.copy(
+                        isImportingModel = false,
+                        status = "模型导入失败：${it.message ?: it::class.java.simpleName}",
+                    )
+                },
+            )
         }
     }
 

@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Delete
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -68,6 +71,12 @@ private enum class AppTab(val title: String) {
 fun DiaryApp(viewModel: DiaryViewModel) {
     val state by viewModel.uiState.collectAsState()
     var tab by remember { mutableStateOf(AppTab.Today) }
+    val context = LocalContext.current
+    val modelPicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument(),
+    ) { uri ->
+        if (uri != null) viewModel.importModel(context, uri)
+    }
 
     Scaffold(
         containerColor = Color(0xFFF6F8FB),
@@ -97,7 +106,12 @@ fun DiaryApp(viewModel: DiaryViewModel) {
         when (tab) {
             AppTab.Today -> TodayScreen(state, viewModel, Modifier.padding(padding))
             AppTab.History -> HistoryScreen(state.history, Modifier.padding(padding))
-            AppTab.Settings -> SettingsScreen(state, viewModel, Modifier.padding(padding))
+            AppTab.Settings -> SettingsScreen(
+                state = state,
+                viewModel = viewModel,
+                onImportModel = { modelPicker.launch(arrayOf("*/*")) },
+                modifier = Modifier.padding(padding),
+            )
         }
     }
 }
@@ -337,6 +351,7 @@ private fun HistoryScreen(entries: List<DiaryEntry>, modifier: Modifier = Modifi
 private fun SettingsScreen(
     state: DiaryUiState,
     viewModel: DiaryViewModel,
+    onImportModel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     LazyColumn(
@@ -361,9 +376,18 @@ private fun SettingsScreen(
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("本地模型路径", fontSize = 19.sp, fontWeight = FontWeight.SemiBold)
                 Text(
-                    if (state.modelAvailable) "模型路径已配置。当前推理后端接入后会使用这个文件。" else "未配置模型时，应用会使用可编辑的本地草稿。",
+                    if (state.modelAvailable) "模型路径已配置，可用于本地 LiteRT-LM 推理。" else "未配置模型时，应用会使用可编辑的本地草稿。",
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
+                Button(
+                    onClick = onImportModel,
+                    enabled = !state.isImportingModel,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Outlined.FolderOpen, contentDescription = null)
+                    Spacer(Modifier.width(6.dp))
+                    Text(if (state.isImportingModel) "正在导入模型……" else "导入 .litertlm 模型文件")
+                }
                 OutlinedTextField(
                     value = state.settings.modelPath,
                     onValueChange = viewModel::updateModelPath,

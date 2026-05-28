@@ -2,6 +2,15 @@ package com.example.aidiary.llm
 
 import com.example.aidiary.data.DiaryDraft
 import com.example.aidiary.data.QuestionIds
+import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.ConversationConfig
+import com.google.ai.edge.litertlm.Engine
+import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.SamplerConfig
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 
 interface LocalLlmEngine {
     suspend fun isAvailable(): Boolean
@@ -16,7 +25,10 @@ sealed interface GenerateResult {
 class GemmaLocalEngine(
     private val modelPathProvider: suspend () -> String,
 ) : LocalLlmEngine {
-    override suspend fun isAvailable(): Boolean = modelPathProvider().isNotBlank()
+    override suspend fun isAvailable(): Boolean {
+        val path = modelPathProvider()
+        return path.isNotBlank() && File(path).canRead()
+    }
 
     override suspend fun generateDiary(draft: DiaryDraft, writingStyle: String): GenerateResult {
         val modelPath = modelPathProvider()
@@ -26,16 +38,58 @@ class GemmaLocalEngine(
                 reason = "本地 Gemma 模型尚未配置，已生成可手动编辑的草稿。",
             )
         }
+        if (!File(modelPath).canRead()) {
+            return GenerateResult.Unavailable(
+                fallbackText = draft.toManualFallback(),
+                reason = "模型文件不可读。请在设置里导入 .litertlm 文件，或确认路径属于本应用可访问目录。",
+            )
+        }
 
-        // Integration point for MediaPipe LLM Inference or LiteRT-LM.
-        // Keep prompt construction deterministic so the engine can be swapped without UI changes.
         val prompt = buildChineseDiaryPrompt(draft, writingStyle)
-        return GenerateResult.Unavailable(
-            fallbackText = draft.toManualFallback(),
-            reason = "已找到模型路径，但 Gemma 推理后端尚未接入。Prompt 长度：${prompt.length}",
+        return runCatching {
+            withContext(Dispatchers.Default) {
+                Engine(
+                    EngineConfig(
+                        modelPath = modelPath,
+                        backend = Backend.CPU(),
+                        maxNumTokens = 1024,
+                    ),
+                ).use { engine ->
+                    engine.initialize()
+                    engine.createConversation(
+                        ConversationConfig(
+                            samplerConfig = SamplerConfig(
+                                topK = 40,
+                                topP = 0.95,
+                                temperature = 0.7,
+                            ),
+                        ),
+                    ).use { conversation ->
+                        conversation.sendMessage(prompt).toPlainText().ifBlank {
+                            draft.toManualFallback()
+                        }
+                    }
+                }
+            }
+        }.fold(
+            onSuccess = { GenerateResult.Success(it) },
+            onFailure = {
+                GenerateResult.Unavailable(
+                    fallbackText = draft.toManualFallback(),
+                    reason = "本地模型推理失败：${it.message ?: it::class.java.simpleName}",
+                )
+            },
         )
     }
 }
+
+private fun com.google.ai.edge.litertlm.Message.toPlainText(): String =
+    contents.contents.joinToString(separator = "") { content ->
+        when (content) {
+            is Content.Text -> content.text
+            else -> ""
+        }
+    }.trim()
 
 fun buildChineseDiaryPrompt(draft: DiaryDraft, writingStyle: String): String {
     val answerLines = draft.answers
